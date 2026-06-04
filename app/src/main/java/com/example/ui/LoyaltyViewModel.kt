@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationCompat
@@ -25,6 +26,38 @@ class LoyaltyViewModel(application: Application) : AndroidViewModel(application)
     val userCoupons: StateFlow<List<UserCoupon>>
     val loyaltyCards: StateFlow<List<LoyaltyCard>>
     val geofenceLogs: StateFlow<List<GeofenceLog>>
+
+    // Dynamic Merchant KPIs
+    val merchantScans: StateFlow<Int>
+    val merchantConversionRate: StateFlow<Int>
+    val merchantExpectedRevenue: StateFlow<Int>
+    
+    var isMerchantOnboarded by mutableStateOf(false)
+    var isMerchantSetupComplete by mutableStateOf(false)
+
+    // Merchant Backend state placeholders
+    var merchantStoreName by mutableStateOf("")
+    var merchantStoreType by mutableStateOf("")
+    var merchantId by mutableStateOf("")
+    var merchantSelectedPlan by mutableStateOf("")
+    var merchantSelectedTemplate by mutableStateOf<CampaignTemplate?>(null)
+    val merchantActivityLogs = mutableStateListOf<String>()
+
+    fun onboardMerchant(name: String, type: String) {
+        merchantStoreName = name
+        merchantStoreType = type
+        merchantId = "MID-${(1000..9999).random()}"
+        isMerchantOnboarded = true
+        merchantActivityLogs.add("Merchant onboarding completed: $name")
+    }
+
+    fun completeSetup(plan: String, template: CampaignTemplate) {
+        merchantSelectedPlan = plan
+        merchantSelectedTemplate = template
+        isMerchantSetupComplete = true
+        merchantActivityLogs.add("Subscribed to plan: $plan")
+        merchantActivityLogs.add("Selected template: ${template.titleEn}")
+    }
 
     // Simulated interactive location states (User can drag avatar)
     var userLatitude by mutableStateOf(250f) // Center of simulated map canvas (0-500)
@@ -70,6 +103,32 @@ class LoyaltyViewModel(application: Application) : AndroidViewModel(application)
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
+        )
+
+        merchantScans = userCoupons.map { it.size }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
+        merchantConversionRate = userCoupons.map { coupons ->
+            if (coupons.isEmpty()) 0 else {
+                val redeemed = coupons.count { it.status == "redeemed" }
+                (redeemed.toFloat() / coupons.size.toFloat() * 100).toInt()
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
+        )
+
+        merchantExpectedRevenue = userCoupons.map { coupons ->
+            val redeemed = coupons.count { it.status == "redeemed" }
+            redeemed * 35 // Simulating each redemption brings 35 SR on average
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 0
         )
 
         // Prepopulate defaults and trigger notification setup
