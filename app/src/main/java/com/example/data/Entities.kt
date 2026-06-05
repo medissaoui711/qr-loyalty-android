@@ -17,7 +17,10 @@ data class Campaign(
     val longitude: Float,
     val geofenceRadius: Float,
     val colorHex: String,
-    val pointsPerRedeem: Int = 1
+    val pointsPerRedeem: Int = 1,
+    val startDate: String = "2026-06-05",
+    val endDate: String = "2026-06-30",
+    val syncStatus: String = "SYNCED" // "PENDING", "SYNCED", "FAILED"
 )
 
 @Entity(tableName = "user_coupons")

@@ -1,6 +1,6 @@
 {
-  "name": "Wallet & Loyalty",
-  "description": "Interactive QR code wallet coupon claiming, automated loyalty card stamp progression, and dynamic local geofence proximity simulation with real push alerts.",
+  "name": "Walleo",
+  "description": "Walleo: Premium digital wallet and automated loyalty rewards suite featuring instant QR claims, status level stamps, real-time geofenced proximity alerts, and live cloud sync.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

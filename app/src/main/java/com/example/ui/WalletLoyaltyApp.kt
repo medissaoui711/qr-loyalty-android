@@ -42,6 +42,10 @@ import com.example.data.Campaign
 import com.example.data.GeofenceLog
 import com.example.data.LoyaltyCard
 import com.example.data.UserCoupon
+import com.example.data.SyncState
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.CloudOff
 import com.example.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,14 +76,14 @@ fun WalletLoyaltyApp(viewModel: LoyaltyViewModel) {
                 title = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = if (isArabic) "منظومة الولاء والمحفظة الذكية" else "Smart Wallet & Loyalty",
+                            text = if (isArabic) "Walleo | محفظة الولاء الرقمية" else "Walleo | Premium Wallet & Loyalty",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = CoffeeGold
                             )
                         )
                         Text(
-                            text = if (isArabic) "محاكاة تحويل QR وإشعارات موقعية" else "QR-to-Wallet & Geofencing Active",
+                            text = if (isArabic) "مزامنة سحابية • مسح QR • تنبيهات موقعية" else "Cloud Sync • QR Scanner • Geofencing",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontSize = 11.sp,
                                 color = SoftGrey
@@ -1853,6 +1857,7 @@ fun MerchantDashboard(
     val scans by viewModel.merchantScans.collectAsStateWithLifecycle(initialValue = 0)
     val conversion by viewModel.merchantConversionRate.collectAsStateWithLifecycle(initialValue = 0)
     val revenue by viewModel.merchantExpectedRevenue.collectAsStateWithLifecycle(initialValue = 0)
+    val syncState by viewModel.syncState.collectAsState()
     
     val currentPlan = viewModel.merchantSelectedPlan
     val selectedTemplate = viewModel.merchantSelectedTemplate
@@ -1865,6 +1870,12 @@ fun MerchantDashboard(
     ) {
         item {
             MerchantPanelTitle(isArabic)
+        }
+
+        item {
+            CloudSyncStatusBar(isArabic = isArabic, syncState = syncState) {
+                viewModel.syncCampaignsWithCloud()
+            }
         }
 
         if (campaigns.isEmpty()) {
@@ -1910,6 +1921,9 @@ fun MerchantDashboard(
             item {
                 MerchantKpiHeader(isArabic, currentPlan, campaigns.size, scans, conversion, revenue) { viewModel.merchantSelectedPlan = "Pro" }
             }
+            item {
+                MerchantCampaignsSection(isArabic, campaigns, viewModel)
+            }
         }
 
         item {
@@ -1938,7 +1952,7 @@ fun MerchantPanelTitle(isArabic: Boolean) {
             Icon(Icons.Filled.TrendingUp, contentDescription = null, tint = CoffeeGold, modifier = Modifier.size(28.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (isArabic) "لوحة نمو المبيعات (Merchant Growth Panel)" else "Merchant Growth Panel",
+                text = if (isArabic) "لوحة تجار Walleo (Merchant Growth Panel)" else "Walleo Merchant Partner Panel",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -2306,14 +2320,18 @@ fun GeoBoostUpsellCard(isArabic: Boolean, currentPlan: String, onUpgrade: () -> 
 @Composable
 fun CampaignCreationForm(isArabic: Boolean, viewModel: LoyaltyViewModel, selectedTemplate: CampaignTemplate?, campaignCount: Int) {
     // Campaign Input form states
-    var cafeNameEn by remember { mutableStateOf("") }
-    var cafeNameAr by remember { mutableStateOf("") }
+    var cafeNameEn by remember(viewModel.merchantStoreName) { mutableStateOf(viewModel.merchantStoreName) }
+    var cafeNameAr by remember(viewModel.merchantStoreName) { mutableStateOf(viewModel.merchantStoreName) }
     var couponTitleEn by remember(selectedTemplate) { mutableStateOf(selectedTemplate?.titleEn ?: "") }
     var couponTitleAr by remember(selectedTemplate) { mutableStateOf(selectedTemplate?.titleAr ?: "") }
     var couponDescEn by remember(selectedTemplate) { mutableStateOf(selectedTemplate?.descEn ?: "") }
     var couponDescAr by remember(selectedTemplate) { mutableStateOf(selectedTemplate?.descAr ?: "") }
     var customCode by remember(selectedTemplate) { mutableStateOf(selectedTemplate?.code ?: "") }
     var selectionColorHex by remember(selectedTemplate) { mutableStateOf(selectedTemplate?.color ?: "#4E342E") }
+
+    // Explicit Launch & End Date fields requested by user
+    var startDateText by remember { mutableStateOf("2026-06-05") }
+    var endDateText by remember { mutableStateOf("2026-07-05") }
 
     val presetColors = listOf("#4E342E", "#5E35B1", "#1E88E5", "#00897B", "#558B2F", "#D81B60")
 
@@ -2329,7 +2347,7 @@ fun CampaignCreationForm(isArabic: Boolean, viewModel: LoyaltyViewModel, selecte
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                text = if (isArabic) "أضف ببيانات المتجر والحملة" else "Campaign Launch Form",
+                text = if (isArabic) "أضف بيانات المتجر والحملة" else "Campaign Launch Form",
                 color = CoffeeGold,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp
@@ -2440,7 +2458,77 @@ fun CampaignCreationForm(isArabic: Boolean, viewModel: LoyaltyViewModel, selecte
                 singleLine = true
             )
 
-            // Select Color theme
+            // Dynamic launch date and end date features requested by user
+            Text(
+                text = if (isArabic) "📅 فترة صلاحية وسريان الحملة:" else "📅 Campaign Start & Expiration Dates:",
+                fontSize = 12.sp,
+                color = SoftGrey,
+                fontWeight = FontWeight.Bold
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = startDateText,
+                    onValueChange = { startDateText = it },
+                    label = { Text(if (isArabic) "تاريخ الإطلاق / البدء" else "Launch Date", fontSize = 11.sp) },
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                    ),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = endDateText,
+                    onValueChange = { endDateText = it },
+                    label = { Text(if (isArabic) "تاريخ انتهاء الحملة" else "End/Expiration Date", fontSize = 11.sp) },
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                    ),
+                    singleLine = true
+                )
+            }
+
+            // Preset date selections
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    Pair("7d", if (isArabic) "+ أسبوع" else "+ 7 Days"),
+                    Pair("30d", if (isArabic) "+ شهر" else "+ 30 Days"),
+                    Pair("90d", if (isArabic) "+ ٣ أشهر" else "+ 90 Days")
+                ).forEach { (key, label) ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(GlassWhite.copy(alpha = 0.15f))
+                            .clickable {
+                                when (key) {
+                                    "7d" -> {
+                                        startDateText = "2026-06-05"
+                                        endDateText = "2026-06-12"
+                                    }
+                                    "30d" -> {
+                                        startDateText = "2026-06-05"
+                                        endDateText = "2026-07-05"
+                                    }
+                                    "90d" -> {
+                                        startDateText = "2026-06-05"
+                                        endDateText = "2026-09-05"
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(text = label, color = CoffeeGold, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+
+            // Choose Color theme
             Text(
                 text = if (isArabic) "اختر لون بطاقة المحفظة:" else "Choose Wallet Theme Tint:",
                 fontSize = 12.sp,
@@ -2477,48 +2565,67 @@ fun CampaignCreationForm(isArabic: Boolean, viewModel: LoyaltyViewModel, selecte
                 else -> true // Pro
             }
 
+            val isFormValid = cafeNameEn.isNotBlank() && cafeNameAr.isNotBlank() && customCode.isNotBlank()
+            val buttonEnabled = canCreate && isFormValid
+            val buttonColor = if (buttonEnabled) CoffeeGold else SoftGrey.copy(alpha = 0.5f)
+
+            if (!isFormValid && canCreate) {
+                Text(
+                    text = if (isArabic) "⚠️ يرجى تعبئة اسم المتجر (بالعربي والإنجليزي) وكود القسيمة لتفعيل زر التدشين" 
+                           else "⚠️ Please fill store name (EN/AR) and Promo Code to enable deployment",
+                    color = Color(0xFFFFB74D),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
+
             Button(
                 onClick = {
-                    if (!canCreate) return@Button
-                    if (cafeNameEn.isNotBlank() && cafeNameAr.isNotBlank() && customCode.isNotBlank()) {
+                    if (buttonEnabled) {
                         viewModel.createMerchantCampaign(
                             name = cafeNameEn.trim(),
                             nameAr = cafeNameAr.trim(),
                             title = if (couponTitleEn.isBlank()) "Promo" else couponTitleEn.trim(),
-                            titleAr = if (couponTitleAr.isBlank()) "عرض خاص" else couponTitleAr.trim(),
-                            desc = if (couponDescEn.isBlank()) "No terms" else couponDescEn.trim(),
-                            descAr = if (couponDescAr.isBlank()) "تسري طبقاً للشروط" else couponDescAr.trim(),
+                            titleAr = if (couponTitleAr.isNotBlank()) couponTitleAr.trim() else "عرض خاص",
+                            desc = if (couponDescEn.isNotBlank()) couponDescEn.trim() else "No terms",
+                            descAr = if (couponDescAr.isNotBlank()) couponDescAr.trim() else "تسري طبقاً للشروط",
                             code = customCode.trim().uppercase(),
-                            color = selectionColorHex
+                            color = selectionColorHex,
+                            startDate = startDateText.trim(),
+                            endDate = endDateText.trim()
                         )
-                        viewModel.merchantActivityLogs.add("Created campaign: ${couponTitleEn.trim().ifEmpty { "Promo" }}")
 
-                        // Clear the form
-                        cafeNameEn = ""
-                        cafeNameAr = ""
+                        // Reset form fields but preserve merchant names by default
                         couponTitleEn = ""
                         couponTitleAr = ""
                         couponDescEn = ""
                         couponDescAr = ""
                         customCode = ""
+                        startDateText = "2026-06-05"
+                        endDateText = "2026-07-05"
                     }
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = if (canCreate) CoffeeGold else SoftGrey),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = buttonColor,
+                    disabledContainerColor = SoftGrey.copy(alpha = 0.3f)
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
                     .testTag("merchant_submit_campaign"),
                 shape = RoundedCornerShape(10.dp),
-                enabled = canCreate
+                enabled = buttonEnabled
             ) {
                 Text(
                     text = if (!canCreate) {
                         if (isArabic) "عذراً، وصلت للحد الأقصى بحسب باقتك" else "Plan limit reached"
+                    } else if (!isFormValid) {
+                        if (isArabic) "أدخل البيانات لإطلاق الحملة" else "Enter Info to Deploy"
                     } else {
-                        if (isArabic) "إطلاق الحملة (Launch Campaign)" else "Deploy Campaign"
+                        if (isArabic) "إطلاق الحملة الآن 🚀" else "Deploy Campaign Now 🚀"
                     },
                     fontWeight = FontWeight.Bold, 
-                    color = EspressoBlack
+                    color = if (buttonEnabled) EspressoBlack else Color.White.copy(alpha = 0.6f)
                 )
             }
         }
@@ -2569,6 +2676,661 @@ fun MerchantAuditLogCard(isArabic: Boolean, viewModel: LoyaltyViewModel) {
                     }
                     Divider(color = GlassWhite.copy(alpha = 0.5f), thickness = 0.5.dp)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun MerchantCampaignsSection(
+    isArabic: Boolean,
+    campaigns: List<Campaign>,
+    viewModel: LoyaltyViewModel
+) {
+    var editingCampaign by remember { mutableStateOf<Campaign?>(null) }
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Toggle header row
+        Card(
+            colors = CardDefaults.cardColors(containerColor = ObsidianDark),
+            border = BorderStroke(1.dp, GlassWhite.copy(alpha = 0.15f)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Campaign,
+                        contentDescription = null,
+                        tint = CoffeeGold,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = if (isArabic) "📢 حملاتك الحالية (${campaigns.size})" else "📢 Ongoing Campaigns (${campaigns.size})",
+                            color = CoffeeGold,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = if (isExpanded) {
+                                if (isArabic) "انقر لإغلاق حملاتك وتقليل التزاحم 🔼" else "Click to collapse view 🔼"
+                            } else {
+                                if (isArabic) "انقر لعرض وإدارة الحملات والتعديل عليها 🔽" else "Click to view & manage campaigns 🔽"
+                            },
+                            color = SoftGrey,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                // Dropdown indicators or toggle buttons
+                IconButton(
+                    onClick = { isExpanded = !isExpanded },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = CoffeeGold
+                    )
+                }
+            }
+        }
+
+        // Active inline pills if collapsed, for streamlined preview
+        if (!isExpanded && campaigns.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isArabic) "نظرة سريعة:" else "Quick view:",
+                    color = SoftGrey,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                // Show a couple of quick circular/pilled layouts representing campaigns
+                campaigns.take(3).forEach { camp ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(android.graphics.Color.parseColor(camp.colorHex)).copy(alpha = 0.2f))
+                            .border(1.dp, Color(android.graphics.Color.parseColor(camp.colorHex)), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (isArabic) camp.couponTitleAr else camp.couponTitle,
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                if (campaigns.size > 3) {
+                    Text(
+                        text = "+${campaigns.size - 3}",
+                        color = CoffeeGold,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Expanded Campaigns List
+        if (isExpanded) {
+            campaigns.forEach { campaign ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = EspressoBlack),
+                border = BorderStroke(1.dp, GlassWhite.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isArabic) campaign.merchantNameAr else campaign.merchantName,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (isArabic) campaign.couponTitleAr else campaign.couponTitle,
+                                color = CoffeeGold,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isArabic) "كود القسيمة: ${campaign.discountCode}" else "Promo Code: ${campaign.discountCode}",
+                                color = SoftGrey,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        // Theme color dot
+                        Box(
+                            modifier = Modifier
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color(android.graphics.Color.parseColor(campaign.colorHex)))
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Date range banner
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .padding(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = null,
+                                    tint = CoffeeGold,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isArabic) "فترة الحملة:" else "Duration:",
+                                    color = SoftGrey,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "${campaign.startDate} ➔ ${campaign.endDate}",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Action buttons (Edit & Delete)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Edit button
+                        OutlinedButton(
+                            onClick = { editingCampaign = campaign },
+                            border = BorderStroke(1.dp, CoffeeGold),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CoffeeGold),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (isArabic) "تعديل التواريخ والبيانات" else "Edit Date/Info", fontSize = 11.sp)
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        // Delete button
+                        Button(
+                            onClick = { viewModel.deleteMerchantCampaign(campaign.id, campaign.couponTitleAr) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350)),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (isArabic) "حذف" else "Delete", color = Color.White, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+    // Editing campaign modal/sheet setup
+    if (editingCampaign != null) {
+        EditCampaignDialog(
+            isArabic = isArabic,
+            campaign = editingCampaign!!,
+            onDismiss = { editingCampaign = null },
+            onSave = { updatedCampaign ->
+                viewModel.updateMerchantCampaign(updatedCampaign)
+                editingCampaign = null
+            }
+        )
+    }
+}
+
+@Composable
+fun EditCampaignDialog(
+    isArabic: Boolean,
+    campaign: Campaign,
+    onDismiss: () -> Unit,
+    onSave: (Campaign) -> Unit
+) {
+    var cafeNameEn by remember { mutableStateOf(campaign.merchantName) }
+    var cafeNameAr by remember { mutableStateOf(campaign.merchantNameAr) }
+    var couponTitleEn by remember { mutableStateOf(campaign.couponTitle) }
+    var couponTitleAr by remember { mutableStateOf(campaign.couponTitleAr) }
+    var couponDescEn by remember { mutableStateOf(campaign.couponDescription) }
+    var couponDescAr by remember { mutableStateOf(campaign.couponDescriptionAr) }
+    var customCode by remember { mutableStateOf(campaign.discountCode) }
+    var startDateText by remember { mutableStateOf(campaign.startDate) }
+    var endDateText by remember { mutableStateOf(campaign.endDate) }
+    var selectedColor by remember { mutableStateOf(campaign.colorHex) }
+
+    val presetColors = listOf("#4E342E", "#5E35B1", "#1E88E5", "#00897B", "#558B2F", "#D81B60")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        confirmButton = {},
+        dismissButton = {},
+        containerColor = ObsidianDark,
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isArabic) "✏️ تعديل بيانات وتواريخ الحملة" else "✏️ Edit Campaign & Dates",
+                        color = CoffeeGold,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = null, tint = SoftGrey)
+                    }
+                }
+
+                Divider(color = GlassWhite.copy(alpha = 0.1f), thickness = 1.dp)
+
+                // Store details
+                Text(
+                    text = if (isArabic) "بيانات ومعرف المتجر:" else "Store Outlets info:",
+                    color = SoftGrey,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = cafeNameEn,
+                        onValueChange = { cafeNameEn = it },
+                        label = { Text("Store Name (EN)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = cafeNameAr,
+                        onValueChange = { cafeNameAr = it },
+                        label = { Text("اسم المتجر (عربي)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        singleLine = true
+                    )
+                }
+
+                // Coupon details
+                Text(
+                    text = if (isArabic) "بيانات القسيمة والعرض:" else "Voucher Offer Content:",
+                    color = SoftGrey,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = couponTitleEn,
+                        onValueChange = { couponTitleEn = it },
+                        label = { Text("Offer Title (EN)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = couponTitleAr,
+                        onValueChange = { couponTitleAr = it },
+                        label = { Text("عنوان العرض (عربي)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        singleLine = true
+                    )
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = couponDescEn,
+                        onValueChange = { couponDescEn = it },
+                        label = { Text("Terms (EN)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        maxLines = 2
+                    )
+                    OutlinedTextField(
+                        value = couponDescAr,
+                        onValueChange = { couponDescAr = it },
+                        label = { Text("الشروط (عربي)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        maxLines = 2
+                    )
+                }
+
+                OutlinedTextField(
+                    value = customCode,
+                    onValueChange = { customCode = it },
+                    label = { Text(if (isArabic) "رمز كود القسيمة الحصري" else "Promo Voucher Code", fontSize = 11.sp) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                    ),
+                    singleLine = true
+                )
+
+                // Date modifiers explicitly requested
+                Text(
+                    text = if (isArabic) "📅 تعديل تواريخ سريان واستهداف الحملة:" else "📅 Campaign Start & End Dates:",
+                    color = SoftGrey,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = startDateText,
+                        onValueChange = { startDateText = it },
+                        label = { Text(if (isArabic) "تاريخ البدء / الإطلاق" else "Launch Date", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = endDateText,
+                        onValueChange = { endDateText = it },
+                        label = { Text(if (isArabic) "تاريخ انتهاء الصلاحية" else "Expiration Date", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                            focusedBorderColor = CoffeeGold, unfocusedBorderColor = SoftGrey
+                        ),
+                        singleLine = true
+                    )
+                }
+
+                // Presets inside dialog
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(
+                        Pair("extend7", if (isArabic) "+ أسبوع" else "+ 1 Week"),
+                        Pair("extend30", if (isArabic) "+ شهر" else "+ 1 Month"),
+                        Pair("extend90", if (isArabic) "+ ٣ أشهر" else "+ 3 Months")
+                    ).forEach { (key, label) ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(GlassWhite.copy(alpha = 0.15f))
+                                .clickable {
+                                    val year = 2026
+                                    when(key) {
+                                        "extend7" -> endDateText = "${year}-06-12"
+                                        "extend30" -> endDateText = "${year}-07-05"
+                                        "extend90" -> endDateText = "${year}-09-05"
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(text = label, color = CoffeeGold, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                // Wallet colour selection in Edit Dialog too for high granularity!
+                Text(
+                    text = if (isArabic) "تحديث لون المظهر الترويجي:" else "Theme Accent Tint:",
+                    fontSize = 11.sp,
+                    color = SoftGrey
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    presetColors.forEach { col ->
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(android.graphics.Color.parseColor(col)))
+                                .border(
+                                    width = if (selectedColor == col) 2.dp else 0.dp,
+                                    color = if (selectedColor == col) Color.White else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable { selectedColor = col }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Action controls
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        border = BorderStroke(1.dp, SoftGrey),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                    ) {
+                        Text(if (isArabic) "إلغاء التعديل" else "Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            if (cafeNameEn.isNotBlank() && cafeNameAr.isNotBlank() && customCode.isNotBlank()) {
+                                onSave(
+                                    campaign.copy(
+                                        merchantName = cafeNameEn.trim(),
+                                        merchantNameAr = cafeNameAr.trim(),
+                                        couponTitle = couponTitleEn.trim(),
+                                        couponTitleAr = couponTitleAr.trim(),
+                                        couponDescription = couponDescEn.trim(),
+                                        couponDescriptionAr = couponDescAr.trim(),
+                                        discountCode = customCode.trim().uppercase(),
+                                        startDate = startDateText.trim(),
+                                        endDate = endDateText.trim(),
+                                        colorHex = selectedColor
+                                    )
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = CoffeeGold),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1.5f)
+                            .height(44.dp),
+                        enabled = cafeNameEn.isNotBlank() && cafeNameAr.isNotBlank() && customCode.isNotBlank()
+                    ) {
+                        Text(if (isArabic) "حفظ التعديلات الآن 💾" else "Save Changes 💾", color = EspressoBlack, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun CloudSyncStatusBar(
+    isArabic: Boolean,
+    syncState: SyncState,
+    onSyncNow: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = EspressoBlack),
+        border = BorderStroke(
+            width = 1.dp,
+            color = when (syncState) {
+                SyncState.CONNECTED -> Color(0xFF4CAF50).copy(alpha = 0.5f)
+                SyncState.SYNCING -> CoffeeGold.copy(alpha = 0.5f)
+                SyncState.OFFLINE -> Color(0xFFEF5350).copy(alpha = 0.5f)
+            }
+        ),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = when (syncState) {
+                        SyncState.CONNECTED -> Icons.Default.CloudQueue
+                        SyncState.SYNCING -> Icons.Default.Sync
+                        SyncState.OFFLINE -> Icons.Default.CloudOff
+                    },
+                    contentDescription = null,
+                    tint = when (syncState) {
+                        SyncState.CONNECTED -> Color(0xFF81C784)
+                        SyncState.SYNCING -> CoffeeGold
+                        SyncState.OFFLINE -> Color(0xFFE57373)
+                    },
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = when (syncState) {
+                            SyncState.CONNECTED -> if (isArabic) "☁️ مزامنة سحابية نشطة" else "☁️ Cloud Sync Active"
+                            SyncState.SYNCING -> if (isArabic) "🔄 جاري مزامنة البيانات..." else "🔄 Synchronizing Data..."
+                            SyncState.OFFLINE -> if (isArabic) "⚠️ وضع البيانات المحلي الآمن" else "⚠️ Resilient Offline Cache Mode"
+                        },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = when (syncState) {
+                            SyncState.CONNECTED -> if (isArabic) "مصدر الحقيقة موثوق ومحدث كلياً ✅" else "Source of truth synced and verified ✅"
+                            SyncState.SYNCING -> if (isArabic) "جاري تحديث الحملات والمقاييس عبر Ktor..." else "Syncing campaign configurations..."
+                            SyncState.OFFLINE -> if (isArabic) "سيتم دمج حملاتك تلقائياً عند الاتصال." else "Changes will push to cloud once online."
+                        },
+                        color = SoftGrey,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            OutlinedButton(
+                onClick = onSyncNow,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(6.dp),
+                border = BorderStroke(1.dp, if (syncState == SyncState.SYNCING) SoftGrey else CoffeeGold),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = CoffeeGold),
+                modifier = Modifier.height(28.dp),
+                enabled = syncState != SyncState.SYNCING
+            ) {
+                Text(
+                    text = if (isArabic) "مزامنة 🔄" else "Sync 🔄",
+                    fontSize = 10.sp,
+                    color = if (syncState == SyncState.SYNCING) SoftGrey else CoffeeGold,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

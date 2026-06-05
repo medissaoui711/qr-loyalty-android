@@ -43,6 +43,23 @@ class LoyaltyViewModel(application: Application) : AndroidViewModel(application)
     var merchantSelectedTemplate by mutableStateOf<CampaignTemplate?>(null)
     val merchantActivityLogs = mutableStateListOf<String>()
 
+    // State flow for Real Cloud Synchronization Integration
+    private val _syncState = MutableStateFlow<SyncState>(SyncState.CONNECTED)
+    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
+
+    fun syncCampaignsWithCloud() {
+        viewModelScope.launch {
+            _syncState.value = SyncState.SYNCING
+            val result = repository.syncWithCloud(campaigns.value)
+            _syncState.value = result
+            if (result == SyncState.CONNECTED) {
+                merchantActivityLogs.add("Cloud Sync Successful: Campaigns synchronized with remote portal.")
+            } else {
+                merchantActivityLogs.add("Cloud Sync Timeout: Operating in resilient local storage mode.")
+            }
+        }
+    }
+
     fun onboardMerchant(name: String, type: String) {
         merchantStoreName = name
         merchantStoreType = type
@@ -135,6 +152,7 @@ class LoyaltyViewModel(application: Application) : AndroidViewModel(application)
         createNotificationChannel()
         viewModelScope.launch {
             repository.populateDefaultsIfNeeded()
+            syncCampaignsWithCloud()
         }
     }
 
@@ -246,7 +264,9 @@ class LoyaltyViewModel(application: Application) : AndroidViewModel(application)
         descAr: String,
         code: String,
         radius: Float = 120f,
-        color: String = "#795548"
+        color: String = "#795548",
+        startDate: String = "2026-06-05",
+        endDate: String = "2026-06-30"
     ) {
         viewModelScope.launch {
             // Random position in safe map canvas
@@ -264,9 +284,32 @@ class LoyaltyViewModel(application: Application) : AndroidViewModel(application)
                 latitude = randomX,
                 longitude = randomY,
                 geofenceRadius = radius,
-                colorHex = color
+                colorHex = color,
+                startDate = startDate,
+                endDate = endDate
             )
             repository.insertCampaign(newCamp)
+            merchantActivityLogs.add("Launched Campaign: $titleAr ($startDate -> $endDate)")
+            syncCampaignsWithCloud()
+        }
+    }
+
+    fun updateMerchantCampaign(campaign: Campaign) {
+        viewModelScope.launch {
+            repository.updateCampaign(campaign)
+            merchantActivityLogs.add("Modified Campaign ID ${campaign.id}: ${campaign.couponTitleAr} (${campaign.startDate} -> ${campaign.endDate})")
+            syncCampaignsWithCloud()
+        }
+    }
+
+    fun deleteMerchantCampaign(campaignId: Int, titleAr: String) {
+        viewModelScope.launch {
+            repository.deleteCampaign(campaignId)
+            merchantActivityLogs.add("Removed Campaign ID $campaignId: $titleAr")
+            if (nearCampaign?.id == campaignId) {
+                nearCampaign = null
+            }
+            syncCampaignsWithCloud()
         }
     }
 

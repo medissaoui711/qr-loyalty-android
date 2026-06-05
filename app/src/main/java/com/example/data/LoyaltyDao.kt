@@ -22,6 +22,12 @@ interface LoyaltyDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCampaign(campaign: Campaign): Long
 
+    @Update
+    suspend fun updateCampaign(campaign: Campaign)
+
+    @Query("DELETE FROM campaigns WHERE id = :id")
+    suspend fun deleteCampaignById(id: Int)
+
     @Query("SELECT * FROM user_coupons")
     fun getUserCoupons(): Flow<List<UserCoupon>>
 

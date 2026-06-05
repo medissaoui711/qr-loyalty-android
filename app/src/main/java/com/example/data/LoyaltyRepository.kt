@@ -24,7 +24,9 @@ class LoyaltyRepository(private val database: AppDatabase) {
                 latitude = 180f,
                 longitude = 160f,
                 geofenceRadius = 100f,
-                colorHex = "#795548"
+                colorHex = "#795548",
+                startDate = "2026-06-01",
+                endDate = "2026-06-30"
             )
             val id1 = database.loyaltyDao.insertCampaign(camp1).toInt()
             database.loyaltyDao.insertLoyaltyCard(
@@ -42,7 +44,9 @@ class LoyaltyRepository(private val database: AppDatabase) {
                 latitude = 360f,
                 longitude = 180f,
                 geofenceRadius = 120f,
-                colorHex = "#D4AF37"
+                colorHex = "#D4AF37",
+                startDate = "2026-06-05",
+                endDate = "2026-07-05"
             )
             val id2 = database.loyaltyDao.insertCampaign(camp2).toInt()
             database.loyaltyDao.insertLoyaltyCard(
@@ -60,7 +64,9 @@ class LoyaltyRepository(private val database: AppDatabase) {
                 latitude = 140f,
                 longitude = 360f,
                 geofenceRadius = 90f,
-                colorHex = "#00E5FF"
+                colorHex = "#00E5FF",
+                startDate = "2026-06-05",
+                endDate = "2026-06-20"
             )
             val id3 = database.loyaltyDao.insertCampaign(camp3).toInt()
             database.loyaltyDao.insertLoyaltyCard(
@@ -70,9 +76,35 @@ class LoyaltyRepository(private val database: AppDatabase) {
     }
 
     suspend fun insertCampaign(campaign: Campaign) {
-        val campaignId = database.loyaltyDao.insertCampaign(campaign).toInt()
+        val campaignId = database.loyaltyDao.insertCampaign(campaign.copy(syncStatus = "PENDING")).toInt()
         database.loyaltyDao.insertLoyaltyCard(
             LoyaltyCard(campaignId = campaignId, stampsCount = 0, maxStamps = 5, points = 0)
+        )
+    }
+
+    suspend fun updateCampaign(campaign: Campaign) {
+        database.loyaltyDao.updateCampaign(campaign.copy(syncStatus = "PENDING"))
+    }
+
+    suspend fun deleteCampaign(campaignId: Int) {
+        database.loyaltyDao.deleteCampaignById(campaignId)
+    }
+
+    suspend fun syncWithCloud(localCampaigns: List<Campaign>): SyncState {
+        return SyncService.syncLocalWithCloud(
+            localCampaigns = localCampaigns,
+            onAddNeededLocal = { camp ->
+                database.loyaltyDao.insertCampaign(camp)
+                database.loyaltyDao.insertLoyaltyCard(
+                    LoyaltyCard(campaignId = camp.id, stampsCount = 0, maxStamps = 5, points = 0)
+                )
+            },
+            onUpdateNeededLocal = { camp ->
+                database.loyaltyDao.updateCampaign(camp)
+            },
+            onDeleteNeededLocal = { campId ->
+                database.loyaltyDao.deleteCampaignById(campId)
+            }
         )
     }
 
